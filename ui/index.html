@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lyricast</title>
+<meta name="description" content="Free lyric video maker for your desktop. Add a song and lyrics, time them to the vocals, pick a style, export an MP4.">
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="fonts.css">
+<style>
+/* Layout: studio editor — inputs on the left, monitor + style strip on the right, like a cutting desk. */
+:root {
+  --ink: #111216;       /* app ground */
+  --deck: #191b21;      /* panels */
+  --well: #22252d;      /* inputs, wells */
+  --line: #2e323c;      /* hairlines */
+  --text: #ece9e2;
+  --dim: #9a9ca6;
+  --tape: #f2c14e;      /* cassette-label yellow: primary accent */
+  --reel: #7dd3c7;      /* secondary: sync / time */
+  --warn: #ff7a6b;
+  --f-display: "Bricolage Grotesque", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "Instrument Sans", "Helvetica Neue", Arial, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --r: 10px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--ink); color: var(--text); font: 14px/1.5 var(--f-body); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--tape); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+.top {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 14px max(20px, env(safe-area-inset-left)) 14px max(20px, env(safe-area-inset-right));
+  border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 10px; font: 800 22px/1 var(--f-display); letter-spacing: -0.02em; }
+.brand svg { flex: none; }
+.tag { color: var(--dim); font-size: 13px; }
+.top .spacer { flex: 1; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--well);
+  padding: 8px 14px; border-radius: 999px; font-weight: 600; font-size: 13px; transition: border-color .15s, background .15s;
+}
+.btn:hover { border-color: #4a4f5c; }
+.btn.primary { background: var(--tape); color: #1b1606; border-color: var(--tape); }
+.btn.primary:hover { background: #ffd36a; }
+.btn.ghost { background: transparent; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dim); }
+.dot.on { background: var(--reel); box-shadow: 0 0 8px var(--reel); }
+.dot.warn { background: var(--warn); }
+.chip { display: inline-flex; align-items: center; gap: 8px; font: 500 12px var(--f-mono); color: var(--dim); border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; }
+.done .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.desk {
+  display: grid; grid-template-columns: minmax(320px, 400px) minmax(0, 1fr); gap: 20px;
+  padding: 20px max(20px, env(safe-area-inset-left)) 32px max(20px, env(safe-area-inset-right));
+  max-width: 1600px; margin: 0 auto;
+}
+@media (max-width: 900px) {
+  .desk { grid-template-columns: minmax(0, 1fr); }
+  .desk > .col { display: contents; }
+  .monitor { order: -1; }
+  #p-style, #p-look, #p-exp { order: 1; }
+}
+
+.panel { background: var(--deck); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.ph { display: flex; align-items: baseline; gap: 10px; }
+.ph h2 { margin: 0; font: 700 17px/1.2 var(--f-display); }
+.step { font: 500 11px/1 var(--f-mono); color: var(--tape); letter-spacing: .08em; text-transform: uppercase; }
+.ph .aside { margin-left: auto; color: var(--dim); font-size: 12px; }
+
+.drop {
+  border: 1.5px dashed #3c414d; border-radius: var(--r); padding: 18px; text-align: center; color: var(--dim);
+  cursor: pointer; transition: border-color .15s, background .15s;
+}
+.drop:hover, .drop.over { border-color: var(--tape); background: rgba(242,193,78,.05); color: var(--text); }
+.drop strong { color: var(--text); display: block; font-weight: 600; margin-bottom: 2px; }
+.track { display: flex; align-items: center; gap: 12px; background: var(--well); border-radius: var(--r); padding: 10px 12px; }
+.track .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+.track .dur { font: 12px var(--f-mono); color: var(--reel); }
+.track button { background: none; border: 0; color: var(--dim); padding: 4px; }
+.track button:hover { color: var(--text); }
+
+.seg { display: inline-flex; background: var(--well); border-radius: 999px; padding: 3px; gap: 2px; }
+.seg button { border: 0; background: transparent; padding: 5px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--dim); }
+.seg button[aria-pressed="true"] { background: var(--text); color: var(--ink); }
+textarea {
+  width: 100%; min-height: 150px; resize: vertical; background: var(--well); border: 1px solid var(--line);
+  border-radius: var(--r); padding: 10px 12px; font: 13px/1.6 var(--f-mono);
+}
+textarea:focus { border-color: #4a4f5c; outline: none; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.note { font-size: 12px; color: var(--dim); }
+.note.warn { color: var(--warn); }
+
+.cues { position: relative; max-height: 300px; overflow: auto; border: 1px solid var(--line); border-radius: var(--r); }
+.cue { display: grid; grid-template-columns: 74px 74px minmax(0, 1fr); gap: 6px; align-items: center; padding: 5px 8px; border-bottom: 1px solid var(--line); }
+.cue:last-child { border-bottom: 0; }
+.cue.now { background: rgba(125,211,199,.08); }
+.cue.now .txt { color: var(--reel); }
+.cue input { width: 100%; background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 3px 4px; font: 12px var(--f-mono); color: var(--dim); }
+.cue input:hover, .cue input:focus { border-color: var(--line); color: var(--text); outline: none; }
+.cue input.missing { color: var(--warn); }
+.cue input.est { color: var(--tape); }
+.heard { margin: 0; font-size: 13px; color: var(--dim); font-style: italic; min-height: 1.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.legend { display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: var(--tape); margin-right: 4px; vertical-align: middle; }
+.cue .txt { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+
+/* monitor */
+.monitor { background: #07080a; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.stage { position: relative; display: grid; place-items: center; background: #050506; padding: 14px; }
+.stage canvas { display: block; max-width: 100%; max-height: 62vh; border-radius: 4px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+.badge { position: absolute; top: 22px; left: 22px; font: 500 11px var(--f-mono); letter-spacing: .06em; background: rgba(0,0,0,.6); padding: 4px 8px; border-radius: 6px; color: var(--tape); text-transform: uppercase; }
+.transport { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-top: 1px solid var(--line); background: var(--deck); }
+.play { width: 38px; height: 38px; border-radius: 50%; border: 0; background: var(--text); color: var(--ink); display: grid; place-items: center; flex: none; }
+.time { font: 12px var(--f-mono); color: var(--dim); font-variant-numeric: tabular-nums; flex: none; }
+.time b { color: var(--text); font-weight: 500; }
+.scrub { flex: 1; min-width: 0; accent-color: var(--tape); }
+
+.styles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.sty { position: relative; border: 2px solid transparent; border-radius: 9px; padding: 0; background: var(--well); overflow: hidden; text-align: left; }
+.sty canvas { display: block; width: 100%; aspect-ratio: 16/9; }
+.sty span { display: flex; justify-content: space-between; gap: 6px; padding: 6px 9px; font-size: 12px; font-weight: 600; }
+.sty span em { font-style: normal; font: 10px var(--f-mono); color: var(--dim); text-transform: uppercase; letter-spacing: .05em; }
+.sty[aria-pressed="true"] { border-color: var(--tape); }
+.sty .del { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%; border: 0; background: rgba(0,0,0,.65); color: #fff; display: none; place-items: center; font-size: 14px; line-height: 1; }
+.sty:hover .del, .sty:focus-within .del { display: grid; }
+.sty.ai { display: grid; place-items: center; text-align: center; border: 1.5px dashed #3c414d; background: transparent; color: var(--dim); padding: 14px; min-height: 120px; gap: 6px; }
+.sty.ai:hover { border-color: var(--tape); color: var(--text); }
+.sty.ai b { color: var(--text); font: 700 14px var(--f-display); }
+
+.sub { font: 500 11px var(--f-mono); color: var(--dim); text-transform: uppercase; letter-spacing: .08em; padding-top: 4px; }
+.slide { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--dim); font-weight: 600; }
+.slide input[type=range] { flex: 1; min-width: 80px; accent-color: var(--tape); }
+.slide output { font: 12px var(--f-mono); color: var(--text); min-width: 3.5ch; text-align: right; }
+.slide input[type=color] { width: 34px; height: 26px; border: 1px solid var(--line); border-radius: 6px; background: var(--well); padding: 2px; }
+.brand-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.brand-row .grow { flex: 1; min-width: 180px; }
+#logoPrev { height: 36px; max-width: 120px; object-fit: contain; background: repeating-conic-gradient(#2a2d35 0 25%, #1f2128 0 50%) 0 0 / 12px 12px; border-radius: 6px; padding: 3px; }
+.brand-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px 16px; align-items: end; }
+.export { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+select { background: var(--well); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
+.bar { flex: 1; min-width: 160px; height: 6px; background: var(--well); border-radius: 3px; overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: var(--tape); transition: width .2s linear; }
+.done { display: flex; align-items: center; gap: 10px; background: rgba(125,211,199,.08); border: 1px solid rgba(125,211,199,.3); border-radius: var(--r); padding: 10px 12px; }
+.done a { color: var(--reel); font-weight: 600; }
+
+/* sync overlay */
+.sync { position: fixed; inset: 0; background: rgba(8,9,12,.92); display: grid; place-items: center; z-index: 20; padding: 20px; }
+.sync-card { width: min(640px, 100%); text-align: center; display: flex; flex-direction: column; gap: 18px; }
+.sync .prev { color: var(--dim); font-size: 15px; min-height: 1.5em; }
+.sync .cur { font: 800 clamp(24px, 4vw, 38px)/1.15 var(--f-display); text-wrap: balance; }
+.sync .nxt { color: var(--dim); font-size: 15px; min-height: 1.5em; }
+.sync .key { font: 600 13px var(--f-mono); border: 1px solid var(--line); border-bottom-width: 3px; padding: 4px 10px; border-radius: 6px; color: var(--text); }
+.sync .tap { margin: 0 auto; width: 160px; height: 160px; border-radius: 50%; border: 0; background: var(--tape); color: #1b1606; font: 800 22px var(--f-display); box-shadow: 0 0 0 10px rgba(242,193,78,.12); }
+.sync .tap:active { transform: scale(.97); }
+
+/* modal */
+dialog { background: var(--deck); color: var(--text); border: 1px solid var(--line); border-radius: 14px; padding: 0; width: min(560px, calc(100% - 32px)); }
+dialog::backdrop { background: rgba(5,6,8,.7); }
+.mh { padding: 18px 20px 0; display: flex; align-items: center; }
+.mh h3 { margin: 0; font: 800 20px var(--f-display); }
+.mh button { margin-left: auto; background: none; border: 0; color: var(--dim); font-size: 22px; line-height: 1; }
+.mb { padding: 16px 20px 20px; display: flex; flex-direction: column; gap: 14px; }
+label.f { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 600; color: var(--dim); }
+label.f input, label.f select, label.f textarea { background: var(--well); border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; font-size: 14px; font-weight: 400; color: var(--text); }
+label.f textarea { min-height: 90px; font-family: var(--f-body); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 480px) { .grid2 { grid-template-columns: 1fr; } }
+.check { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.keynote { font-size: 12px; color: var(--dim); background: var(--well); border-radius: 8px; padding: 10px 12px; }
+.ideas { display: flex; gap: 6px; flex-wrap: wrap; }
+.ideas button { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 4px 10px; font-size: 12px; color: var(--dim); }
+.ideas button:hover { color: var(--text); border-color: #4a4f5c; }
+.steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; color: var(--dim); font-size: 13px; }
+.steps b, .steps a { color: var(--text); }
+a.btn { text-decoration: none; }
+.err { color: var(--warn); font-size: 13px; }
+.spin { width: 14px; height: 14px; border: 2px solid rgba(0,0,0,.25); border-top-color: #1b1606; border-radius: 50%; animation: sp .8s linear infinite; }
+@keyframes sp { to { transform: rotate(360deg); } }
+footer { color: var(--dim); font-size: 12px; text-align: center; padding: 0 20px 28px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><rect x="1" y="5" width="26" height="18" rx="4" fill="none" stroke="#f2c14e" stroke-width="2"/><circle cx="9" cy="14" r="3.2" fill="#f2c14e"/><circle cx="19" cy="14" r="3.2" fill="#f2c14e"/><path d="M9 14h10" stroke="#f2c14e" stroke-width="2"/></svg>
+    Lyricast
+  </div>
+  <span class="tag">Free lyric video maker. Everything runs on your computer.</span>
+  <span class="spacer"></span>
+  <span class="chip" id="engineChip" title="Where timing runs"><span class="dot" id="engineDot"></span><span id="engineLabel">Starting engine…</span></span>
+  <button class="btn ghost" id="sunoBtn" type="button">Import from Suno</button>
+  <button class="btn ghost" id="aiBtn" type="button"><span class="dot" id="aiDot"></span><span id="aiLabel">Add AI key</span></button>
+</header>
+
+<main class="desk">
+  <div class="col">
+    <section class="panel" aria-labelledby="h-audio">
+      <div class="ph"><span class="step">01</span><h2 id="h-audio">Song</h2><span class="aside">MP3, WAV, OGG, M4A</span></div>
+      <label class="drop" id="drop" for="audioIn">
+        <strong>Drop your audio file here</strong>or click to browse
+        <input type="file" id="audioIn" accept="audio/*" hidden>
+      </label>
+      <div class="track" id="track" hidden>
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="6" cy="18" r="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="16" r="3" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        <span class="name" id="trackName"></span><span class="dur" id="trackDur"></span>
+        <button type="button" id="trackX" aria-label="Remove song">✕</button>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="h-lyr">
+      <div class="ph"><span class="step">02</span><h2 id="h-lyr">Lyrics</h2>
+        <span class="aside"><span class="seg" role="group" aria-label="Lyrics format">
+          <button type="button" id="modeText" aria-pressed="true">Plain text</button>
+          <button type="button" id="modeSrt" aria-pressed="false">SRT</button>
+        </span></span>
+      </div>
+      <textarea id="lyrics" spellcheck="false" aria-label="Lyrics"></textarea>
+      <div class="row">
+        <label class="btn" for="lyrIn">Open .txt / .srt<input type="file" id="lyrIn" accept=".txt,.srt,text/plain" hidden></label>
+        <span class="note" id="lyrNote"></span>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="h-sync">
+      <div class="ph"><span class="step">03</span><h2 id="h-sync">Timing</h2><span class="aside" id="syncCount"></span></div>
+      <div class="row">
+        <button class="btn primary" type="button" id="autoBtn">Auto-time from song</button>
+        <button class="btn" type="button" id="refineBtn">Refine timing</button>
+        <button class="btn" type="button" id="tapBtn">Tap to sync</button>
+        <button class="btn" type="button" id="spreadBtn">Spread evenly</button>
+      </div>
+      <p class="note" id="syncNote" style="margin:0">Auto-time lines your lyrics up with the vocals. Refine timing snaps existing times (from Tap, SRT or by hand) to where each line is sung. Tap to sync lets you do it by hand with Space.</p>
+      <div class="cues" id="cues" role="list"></div>
+    </section>
+  </div>
+
+  <div class="col monitor-col">
+    <section class="monitor" aria-label="Preview">
+      <div class="stage">
+        <canvas id="view" width="960" height="540"></canvas>
+        <span class="badge" id="demoBadge">Demo song · press play, then add your own</span>
+      </div>
+      <div class="transport">
+        <button class="play" id="playBtn" type="button" aria-label="Play">
+          <svg id="icoPlay" width="16" height="16" viewBox="0 0 16 16"><path d="M4 2l10 6-10 6z" fill="currentColor"/></svg>
+          <svg id="icoPause" width="16" height="16" viewBox="0 0 16 16" hidden><path d="M3 2h4v12H3zM9 2h4v12H9z" fill="currentColor"/></svg>
+        </button>
+        <span class="time"><b id="tNow">0:00.0</b> / <span id="tDur">0:00</span></span>
+        <input class="scrub" id="scrub" type="range" min="0" max="1000" value="0" aria-label="Seek">
+      </div>
+    </section>
+
+    <section class="panel" id="p-style" aria-labelledby="h-style">
+      <div class="ph"><span class="step">04</span><h2 id="h-style">Style</h2><span class="aside" id="styleName"></span></div>
+      <div class="styles" id="styles"></div>
+      <div class="row" style="gap:12px">
+        <span class="slide" style="font-weight:600">Lyrics colour</span>
+        <span class="seg" role="group" aria-label="Lyrics colour">
+          <button type="button" id="colStyle" aria-pressed="true">From style</button>
+          <button type="button" id="colAuto" aria-pressed="false">Auto</button>
+          <button type="button" id="colCustom" aria-pressed="false">Custom</button>
+        </span>
+        <span class="row" id="colPick" hidden>
+          <label class="slide">Text <input type="color" id="colText" value="#ffffff"></label>
+          <label class="slide">Highlight <input type="color" id="colHl" value="#ffd166"></label>
+        </span>
+      </div>
+      <p class="note" id="colNote" style="margin:0" hidden>Auto switches the lyrics between light and dark so they stay readable on whatever is behind them.</p>
+    </section>
+
+    <section class="panel" id="p-look" aria-labelledby="h-look">
+      <div class="ph"><span class="step">05</span><h2 id="h-look">Background &amp; brand</h2></div>
+      <div class="sub">Background</div>
+      <div class="row">
+        <span class="seg" role="group" aria-label="Background">
+          <button type="button" id="bgStyle" aria-pressed="true">From style</button>
+          <button type="button" id="bgImg" aria-pressed="false">Image</button>
+          <button type="button" id="bgVid" aria-pressed="false">Video</button>
+        </span>
+        <span class="note" id="bgName"></span>
+      </div>
+      <input type="file" id="bgFile" hidden>
+      <label class="slide" id="bgDimRow" hidden>Darken <input type="range" id="bgDim" min="0" max="85" value="35"><output id="bgDimOut">35%</output></label>
+      <div class="sub">Brand</div>
+      <div class="brand-row">
+        <label class="btn" for="logoIn" id="logoBtn">Add logo<input type="file" id="logoIn" accept="image/png,image/svg+xml,image/webp,image/jpeg,image/gif" hidden></label>
+        <img id="logoPrev" alt="Your logo" hidden>
+        <button class="btn ghost" type="button" id="logoX" hidden>Remove logo</button>
+        <label class="f grow">Text<input id="brandText" maxlength="60" placeholder="Channel or artist name"></label>
+      </div>
+      <div class="brand-grid">
+        <label class="f">Position
+          <select id="brandPos">
+            <option value="top-left">Top left</option><option value="top-right">Top right</option><option value="top-center">Top centre</option>
+            <option value="bottom-left">Bottom left</option><option value="bottom-right" selected>Bottom right</option><option value="bottom-center">Bottom centre</option>
+          </select>
+        </label>
+        <label class="slide">Size <input type="range" id="brandSize" min="3" max="20" value="7"><output id="brandSizeOut">7%</output></label>
+        <label class="slide">Opacity <input type="range" id="brandOp" min="20" max="100" value="85"><output id="brandOpOut">85%</output></label>
+        <label class="slide">Text colour <input type="color" id="brandColor" value="#ffffff"></label>
+      </div>
+      <p class="note" id="brandNote" style="margin:0">Your logo and text are remembered. Backgrounds are used for this session only.</p>
+    </section>
+
+    <section class="panel" id="p-exp" aria-labelledby="h-exp">
+      <div class="ph"><span class="step">06</span><h2 id="h-exp">Export</h2><span class="aside" id="expFmt"></span></div>
+      <div class="export">
+        <select id="format" aria-label="Video format">
+          <option value="1920x1080">Landscape 1920×1080 (YouTube)</option>
+          <option value="1080x1920">Vertical 1080×1920 (Shorts, Reels, TikTok)</option>
+          <option value="1080x1080">Square 1080×1080</option>
+          <option value="1280x720">Landscape 1280×720 (faster)</option>
+        </select>
+        <select id="fps" aria-label="Frame rate"><option value="30">30 fps</option><option value="60">60 fps</option></select>
+        <button class="btn primary" type="button" id="expBtn">Render video</button>
+        <button class="btn" type="button" id="expCancel" hidden>Cancel</button>
+      </div>
+      <div class="row" id="expProg" hidden><div class="bar"><i id="expBar"></i></div><span class="time" id="expTime"></span></div>
+      <p class="note" id="expNote" style="margin:0">Renders every frame on your computer and saves an MP4 to your Videos/Lyricast folder.</p>
+      <div class="done" id="expDone" hidden></div>
+    </section>
+  </div>
+</main>
+<footer>Lyricast is free. Songs, lyrics and videos stay on your computer. An AI key is only used when you create a style, and goes straight to the provider you pick.</footer>
+
+<div class="sync" id="sync" hidden role="dialog" aria-modal="true" aria-label="Tap to sync">
+  <div class="sync-card">
+    <span class="step" id="syncStep">Line 1 of 1</span>
+    <div class="prev" id="sPrev"></div>
+    <div class="cur" id="sCur"></div>
+    <div class="nxt" id="sNxt"></div>
+    <button class="tap" type="button" id="tapHit">TAP</button>
+    <div class="note">Press <span class="key">Space</span> when the line starts · <span class="key">Backspace</span> undo · <span class="key">Esc</span> stop</div>
+  </div>
+</div>
+
+<dialog id="autoDlg" aria-labelledby="autoTitle">
+  <div class="mh"><h3 id="autoTitle">Auto-time from the song</h3><button type="button" id="autoClose" aria-label="Close">×</button></div>
+  <div class="mb">
+    <p class="note" id="autoIntro" style="margin:0"></p>
+    <label class="check"><input type="checkbox" id="autoSep" checked> Separate the vocals from the music first (recommended)</label>
+    <label class="slide" id="autoWinRow" hidden>Search ± <input type="range" id="autoWin" min="1" max="15" value="4"><output id="autoWinOut">4 s</output></label>
+    <p class="keynote" id="autoDev" style="margin:0"></p>
+    <div id="autoRun" hidden style="display:flex;flex-direction:column;gap:8px">
+      <div class="row"><div class="bar"><i id="autoBar"></i></div><span class="time" id="autoPct"></span></div>
+      <p class="note" id="autoStage" style="margin:0"></p>
+    </div>
+    <p class="note" style="margin:0;font-size:11px">Uses Demucs (MIT) to isolate the vocals and Meta's MMS forced-alignment model (CC BY-NC 4.0, non-commercial) to find every word. Models download once on first use.</p>
+    <p class="err" id="autoErr" hidden style="margin:0"></p>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn" type="button" id="autoCancel">Cancel</button>
+      <button class="btn primary" type="button" id="autoGo">Start</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="sunoDlg" aria-labelledby="sunoTitle">
+  <div class="mh"><h3 id="sunoTitle">Import songs from Suno</h3><button type="button" id="sunoClose" aria-label="Close">×</button></div>
+  <div class="mb">
+    <p class="note" style="margin:0">The Lyricast helper adds a <b>Send to Lyricast</b> button to your Suno song pages. It takes the MP3 and Suno's word timing and sends both straight to this app, so nothing opens in a new tab. Your Suno login stays on suno.com.</p>
+    <ol class="steps">
+      <li>Install <a href="https://www.tampermonkey.net/" target="_blank" rel="noopener">Tampermonkey</a> in your browser.</li>
+      <li>Install the helper below and confirm in Tampermonkey. If you had the website version of the helper, this one replaces it.</li>
+      <li>Keep Lyricast running, open a song on suno.com and press <b>Send to Lyricast</b>. The song shows up here already timed. Run <b>Refine timing</b> afterwards to tighten Suno's timing to the vocals.</li>
+    </ol>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn" type="button" id="sunoCancel">Close</button>
+      <a class="btn primary" id="sunoInstall" href="lyricast-suno.user.js?v=3.0" target="_blank" rel="noopener">Install the helper</a>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="aiDlg" aria-labelledby="aiTitle">
+  <form method="dialog" id="aiForm">
+    <div class="mh"><h3 id="aiTitle">Create a style with AI</h3><button type="button" id="aiClose" aria-label="Close">×</button></div>
+    <div class="mb">
+      <div class="grid2">
+        <label class="f">Provider
+          <select id="aiProv"><option value="anthropic">Anthropic (Claude)</option><option value="openai">OpenAI</option></select>
+        </label>
+        <label class="f">Model<input id="aiModel" autocomplete="off"></label>
+      </div>
+      <label class="f">API key<input id="aiKey" type="password" autocomplete="off" placeholder="Paste your key"></label>
+      <div class="keynote">Your key is saved on this computer only and is sent directly to the provider when you press Create. <button type="button" class="btn ghost" id="aiForget" style="padding:2px 10px;margin-left:4px">Forget key</button></div>
+      <label class="f">Describe the look
+        <textarea id="aiPrompt" placeholder="e.g. rainy city at night, slow and moody, words fade in like breath on glass"></textarea>
+      </label>
+      <div class="ideas" id="aiIdeas"></div>
+      <label class="check"><input type="checkbox" id="aiUseLyrics" checked> Let the AI read my lyrics to match the mood</label>
+      <p class="err" id="aiErr" hidden></p>
+      <div class="row" style="justify-content:flex-end">
+        <button class="btn" type="button" id="aiCancel">Cancel</button>
+        <button class="btn primary" type="button" id="aiGo">Create style</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+
+<script src="renderer.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
